@@ -1,0 +1,6 @@
+@wpfw_opdract3_HostAddress = http://localhost:5058
+
+GET {{wpfw_opdract3_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
