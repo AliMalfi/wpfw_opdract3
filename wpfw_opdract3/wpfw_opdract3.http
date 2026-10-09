@@ -1,6 +1,9 @@
-@wpfw_opdract3_HostAddress = http://localhost:5058
+@host = http://localhost:5058
 
-GET {{wpfw_opdract3_HostAddress}}/weatherforecast/
+GET {{host}}/api/projects
 Accept: application/json
 
 ###
+
+GET {{host}}/api/blogposts
+Accept: application/json
