@@ -1,9 +1,11 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using wpfw_opdracht3.Models;
 
 namespace wpfw_opdracht3.Data;
 
-public class AppDbContext : DbContext
+// IdentityDbContext = gewone DbContext + tabellen voor gebruikers en rollen
+public class AppDbContext : IdentityDbContext<User>
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
@@ -14,6 +16,7 @@ public class AppDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);                  // NIEUW: eerst Identity instellen
         modelBuilder.Entity<Blogpost>().HasData(
             new Blogpost
             {
