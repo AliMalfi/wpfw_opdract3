@@ -1,6 +1,7 @@
 namespace wpfw_opdracht3;
 
 using Microsoft.AspNetCore.Identity;
+using wpfw_opdracht3.Auth;
 using Microsoft.EntityFrameworkCore;
 using wpfw_opdracht3.Data;
 using wpfw_opdracht3.Models;
@@ -8,7 +9,7 @@ using wpfw_opdracht3.Services;
 
 public class Program
 {
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -19,6 +20,29 @@ public class Program
         // Identity aanzetten (gebruikers + rollen, opgeslagen in onze database)
         builder.Services.AddIdentity<User, IdentityRole>()
             .AddEntityFrameworkStores<AppDbContext>();
+
+        // Policy: alleen Editor of Admin mag schrijven (POST, PUT, DELETE)
+        builder.Services.AddAuthorizationBuilder()
+            .AddPolicy(Policies.CanEdit, policy =>
+                policy.RequireRole(Roles.Editor, Roles.Admin));
+
+        // API: geen doorsturen naar een loginpagina, maar 401 / 403 teruggeven
+        builder.Services.ConfigureApplicationCookie(options =>
+        {
+            // Niet ingelogd -> 401
+            options.Events.OnRedirectToLogin = context =>
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return Task.CompletedTask;
+            };
+
+            // Ingelogd, maar geen Editor of Admin -> 403
+            options.Events.OnRedirectToAccessDenied = context =>
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return Task.CompletedTask;
+            };
+        });
 
         // Registreer de ProjectService via Dependency Injection: koppel de interface aan de concrete implementatie per HTTP-request
         builder.Services.AddScoped<IProjectService, ProjectService>();
@@ -48,6 +72,8 @@ public class Program
         app.UseAuthentication();   // 1. Wie ben jij? (leest de cookie)
         app.UseAuthorization();    // 2. Wat mag jij?      
         app.MapControllers();
+        // Rollen Gast, Editor en Admin aanmaken (als ze nog niet bestaan)
+        await RoleSeeder.SeedRolesAsync(app.Services);
 
         app.Run();
     }
