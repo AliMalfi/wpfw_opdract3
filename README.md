@@ -1,60 +1,100 @@
-# wpfw_opdract3 – Portfolio Backend
+# wpfw_opdract3 – Portfolio Backend (beveiligd en getest)
 
-ASP.NET Core Web API voor mijn portfoliosite. De API slaat projecten en blogposts op in een SQL Server-database via Entity Framework Core.
+ASP.NET Core Web API voor mijn portfoliosite. De API slaat projecten en blogposts op in SQL Server via Entity Framework Core, gebruikt **ASP.NET Core Identity** voor accounts en rollen, en is getest met een **xUnit**-testproject.
 
 **Student:** Ali Malfi
+
 **Portfolio (frontend):** https://github.com/AliMalfi/AliMalfi.github.io
 
 ## Technieken
 - .NET 10 – ASP.NET Core Web API (controllers)
-- Entity Framework Core 10 met SQL Server (SQL Express)
+- Entity Framework Core 10 + SQL Server Express
+- ASP.NET Core Identity (gebruikers, rollen, cookie-login)
 - Swagger UI (Swashbuckle.AspNetCore)
+- xUnit + Microsoft.AspNetCore.Mvc.Testing (integratietests via HTTP)
 
-## Opbouw (lagen)
-| Map | Rol |
+## Projectstructuur
+| Map / project | Inhoud |
 |---|---|
-| `Controllers` | Ontvangt HTTP-requests en geeft HTTP-responses terug |
-| `Services` | Logica + omzetting tussen entiteit en DTO |
-| `Data` | `AppDbContext` – verbinding met de database via EF Core |
-| `Models` | Entiteiten (`Project`, `Blogpost`) |
-| `DTOs` | `ProjectDto`, `ProjectCreateDto`, `BlogpostDto` |
+| `wpfw_opdract3/Controllers` | `ProjectsController`, `BlogpostsController`, `AuthController` |
+| `wpfw_opdract3/Services` | Logica + omzetting entiteit ↔ DTO |
+| `wpfw_opdract3/Data` | `AppDbContext` (IdentityDbContext) en `RoleSeeder` |
+| `wpfw_opdract3/Models` | `Project`, `Blogpost`, `User` |
+| `wpfw_opdract3/DTOs` | DTO's voor projecten, blogposts, register en login |
+| `wpfw_opdract3/Auth` | Rolnamen (`Roles`) en policy-namen (`Policies`) |
+| `wpfw_opdract3/Scripts` | `rollen-toekennen.sql` (lokaal Editor/Admin maken) |
+| `wpfw_opdracht3.Tests` | xUnit-testproject (33 tests) |
 
 ## Vereisten
 - .NET 10 SDK
-- SQL Server Express (of LocalDB)
-- EF Core tools: `dotnet tool install --global dotnet-ef`
+- SQL Server Express (`.\SQLEXPRESS`), inloggen met Windows-account
+- SQL Server Management Studio (voor het rolscript)
 
-## Database aanmaken
-De database wordt aangemaakt met **migraties**. Controleer eerst de connectionstring in `appsettings.json`:
+## 1. Database en migraties
+De connectionstring staat in `appsettings.json`:
 
 ```json
 "DefaultConnection": "Server=.\\SQLEXPRESS;Database=PortfolioDb;Trusted_Connection=True;TrustServerCertificate=True;"
 ```
 
-Voer daarna in de projectmap (`wpfw_opdract3/wpfw_opdracht3`) uit:
+De database en alle tabellen (ook de **Identity-tabellen** zoals `AspNetUsers` en `AspNetRoles`) worden **automatisch aangemaakt bij het opstarten**: `RoleSeeder` voert `Database.MigrateAsync()` uit en maakt daarna de rollen **Gast**, **Editor** en **Admin** aan.
+
+Handmatig migreren kan ook:
 
 ```bash
-dotnet ef database update
+dotnet ef database update --project wpfw_opdract3
 ```
 
-Of in Visual Studio via de Package Manager Console: `Update-Database`
+of in Visual Studio (Package Manager Console): `Update-Database`
 
-Hiermee worden de tabellen `Projects` en `Blogposts` aangemaakt en twee voorbeeld-blogposts toegevoegd.
-
-## Applicatie starten
+## 2. API starten
 ```bash
-dotnet run
+dotnet run --project wpfw_opdract3
 ```
-Open daarna Swagger UI op de URL die in de console verschijnt, gevolgd door `/swagger`
-(bijvoorbeeld `http://localhost:5058/swagger`).
+Swagger UI opent op de startpagina: `https://localhost:7101/`
+
+## 3. Gebruikers en rollen lokaal beschikbaar maken
+Er staan **geen wachtwoorden of sleutels** in de repository.
+
+1. **Gewone gebruiker (Gast):** registreer via `POST /api/auth/register`.
+   Iedere nieuwe gebruiker krijgt automatisch de rol **Gast**. Publieke registratie kent nooit Editor of Admin toe.
+2. **Editor en Admin:** registreer eerst `editor@test.nl` en `admin@test.nl` via `POST /api/auth/register` (met een eigen wachtwoord).
+3. Open `wpfw_opdract3/Scripts/rollen-toekennen.sql` in SQL Server Management Studio en voer het uit (**F5**). Het script vervangt de rol Gast door **Editor** of **Admin** en toont daarna welke gebruiker welke rol heeft.
+4. **Log opnieuw in** (`POST /api/auth/logout`, daarna `POST /api/auth/login`). De rollen worden bij het inloggen in de cookie gezet, dus na een rolwijziging is een nieuwe login nodig.
+
+Wachtwoordregels (Identity): minimaal 6 tekens, met hoofdletter, kleine letter, cijfer en speciaal teken.
+
+## 4. Inloggen en autorisatie
+- `POST /api/auth/login` geeft een **authenticatiecookie** (`.AspNetCore.Identity.Application`). Swagger en de browser sturen die automatisch mee.
+- **GET**-routes zijn publiek.
+- **POST, PUT en DELETE** vereisen de policy `CanEdit` (rol **Editor** of **Admin**).
+  - Zonder aanmelding → **401 Unauthorized**
+  - Aangemeld zonder Editor/Admin → **403 Forbidden**
+
+## 5. Tests uitvoeren
+Vanuit de solutionmap:
+```bash
+dotnet test
+```
+Of in Visual Studio: **Test → Test Explorer → Run All Tests**.
+
+- De tests starten de API met `WebApplicationFactory` en sturen echte HTTP-requests.
+- Ze gebruiken een **aparte testdatabase** `PortfolioDb_Test`, die bij elke testrun wordt verwijderd en opnieuw aangemaakt. De gewone database `PortfolioDb` wordt niet aangeraakt.
+- Het testwachtwoord in `ApiFactory.cs` hoort alleen bij deze tijdelijke testdatabase.
 
 ## Endpoints
-| Methode | Route | Omschrijving |
+| Methode | Route | Toegang |
 |---|---|---|
-| GET | `/api/projects` | Alle projecten |
-| GET | `/api/projects/{id}` | Eén project |
-| POST | `/api/projects` | Nieuw project aanmaken |
-| PUT | `/api/projects/{id}` | Project wijzigen |
-| DELETE | `/api/projects/{id}` | Project verwijderen |
-| GET | `/api/blogposts` | Alle blogposts |
-| GET | `/api/blogposts/{id}` | Eén blogpost |
+| GET | `/api/projects` | iedereen |
+| GET | `/api/projects/{id}` | iedereen |
+| POST | `/api/projects` | Editor, Admin |
+| PUT | `/api/projects/{id}` | Editor, Admin |
+| DELETE | `/api/projects/{id}` | Editor, Admin |
+| GET | `/api/blogposts` | iedereen |
+| GET | `/api/blogposts/{id}` | iedereen |
+| POST | `/api/blogposts` | Editor, Admin |
+| PUT | `/api/blogposts/{id}` | Editor, Admin |
+| DELETE | `/api/blogposts/{id}` | Editor, Admin |
+| POST | `/api/auth/register` | iedereen (krijgt rol Gast) |
+| POST | `/api/auth/login` | iedereen |
+| POST | `/api/auth/logout` | iedereen |
