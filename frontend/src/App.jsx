@@ -1,6 +1,7 @@
 import { Routes, Route, NavLink } from 'react-router-dom'
 import HomePage from './pages/HomePage'
 import ProjectsPage from './pages/ProjectsPage'
+import ProjectDetailPage from './pages/ProjectDetailPage'
 import NotFoundPage from './pages/NotFoundPage'
 
 export default function App() {
@@ -19,7 +20,9 @@ export default function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/projecten" element={<ProjectsPage />} />
-          {/* 3. Alle andere URL's: 404-pagina */}
+          {/* 3. Detailpagina: :id is het stukje uit de URL */}
+          <Route path="/projecten/:id" element={<ProjectDetailPage />} />
+          {/* 4. Alle andere URL's: 404-pagina */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
