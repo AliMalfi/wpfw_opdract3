@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,7 +10,7 @@ using wpfw_opdracht3.Models;
 
 namespace wpfw_opdracht3.Tests;
 
-// Tests voor /api/auth (register, login, logout)
+// Tests voor /api/auth (register, login, logout, me)
 [Collection("Api")]
 public class AuthTests
 {
@@ -132,5 +133,43 @@ public class AuthTests
 
         // Assert: cookie is weg -> 401
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    // ---------- ME ----------
+
+    [Fact]
+    public async Task Me_ZonderInloggen_Geeft401()
+    {
+        // Arrange: client zonder cookie
+        var client = _factory.MaakClient();
+
+        // Act
+        var response = await client.GetAsync("/api/auth/me");
+
+        // Assert: niemand ingelogd -> 401
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Me_AlsEditor_GeeftEmailEnRol()
+    {
+        // Arrange: Editor maken en inloggen
+        await _factory.MaakGebruikerAsync("me-editor@test.nl", Roles.Editor);
+        var client = _factory.MaakClient();
+        var login = new LoginDto { Email = "me-editor@test.nl", Password = ApiFactory.TestWachtwoord };
+        await client.PostAsJsonAsync("/api/auth/login", login);
+
+        // Act
+        var response = await client.GetAsync("/api/auth/me");
+
+        // Assert 1: 200 OK
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // Assert 2: de juiste gegevens komen terug (e-mail + alleen de rol Editor)
+        var data = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("me-editor@test.nl", data.GetProperty("email").GetString());
+        var rollen = data.GetProperty("rollen").EnumerateArray().Select(r => r.GetString()).ToList();
+        Assert.Contains(Roles.Editor, rollen);
+        Assert.DoesNotContain(Roles.Gast, rollen);
     }
 }

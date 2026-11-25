@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using wpfw_opdracht3.Auth;
 using wpfw_opdracht3.DTOs;
 using wpfw_opdracht3.Models;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 
 namespace wpfw_opdracht3.Controllers;
 
@@ -81,5 +83,22 @@ public class AuthController : ControllerBase
 
         // 2. Gelukt -> 200
         return Ok(new { message = "Uitgelogd" });
+    }
+
+    // GET: api/auth/me -> wie is er ingelogd en met welke rol?
+    // React gebruikt dit na een paginaverversing
+    [HttpGet("me")]
+    [Authorize] // 1. Niet ingelogd? Dan automatisch 401
+    public IActionResult Me()
+    {
+        // 2. De rollen staan als claims in de cookie (dezelfde die de API controleert)
+        var rollen = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
+
+        // 3. E-mail en rollen teruggeven (geen wachtwoord of andere geheimen!)
+        return Ok(new
+        {
+            email = User.Identity?.Name,
+            rollen
+        });
     }
 }
