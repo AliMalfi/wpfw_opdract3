@@ -1,4 +1,4 @@
-import { Routes, Route, NavLink } from 'react-router-dom'
+import { Routes, Route, NavLink, Link } from 'react-router-dom'
 import { useAuth } from './auth/AuthContext'
 import HomePage from './pages/HomePage'
 import ProjectsPage from './pages/ProjectsPage'
@@ -15,34 +15,47 @@ export default function App() {
 
   return (
     <>
-      <header>
-        {/* 2. Hoofdmenu */}
-        <nav aria-label="Hoofdnavigatie">
-          <NavLink to="/">Home</NavLink> |{' '}
-          <NavLink to="/projecten">Projecten</NavLink> |{' '}
-          <NavLink to="/blog">Blog</NavLink>
-        </nav>
+      {/* 2. Toetsenbord: direct naar de inhoud springen */}
+      <a href="#inhoud" className="skip-link">Ga naar inhoud</a>
 
-        {/* 3. Aanmeldstatus: ingelogd of links naar inloggen/registreren */}
-        <p role="status">
-          {loading && 'Aanmeldstatus controleren…'}
-          {!loading && user && (
-            <>
-              Ingelogd als <strong>{user.email}</strong> ({user.rollen.join(', ')}){' '}
-              <button type="button" onClick={logout}>Uitloggen</button>
-            </>
-          )}
-          {!loading && !user && (
-            <>
-              Niet ingelogd · <NavLink to="/inloggen">Inloggen</NavLink> ·{' '}
-              <NavLink to="/registreren">Registreren</NavLink>
-            </>
-          )}
-        </p>
+      <header className="site-header">
+        <div className="header-inner">
+          {/* 3. Logo zoals op mijn oude portfolio */}
+          <p className="logo">
+            <Link to="/"><span>A</span>li <span>M</span>alfi</Link>
+          </p>
+
+          {/* 4. Hoofdmenu (NavLink zet zelf class="active" en aria-current) */}
+          <nav aria-label="Hoofdnavigatie">
+            <ul>
+              <li><NavLink to="/" end>Home</NavLink></li>
+              <li><NavLink to="/projecten">Projecten</NavLink></li>
+              <li><NavLink to="/blog">Blog</NavLink></li>
+            </ul>
+          </nav>
+
+          {/* 5. Aanmeldstatus */}
+          <div className="auth-status" role="status">
+            {loading && <span>Aanmeldstatus controleren…</span>}
+            {!loading && user && (
+              <>
+                <span>{user.email}</span>
+                <span className="rol">{user.rollen.join(', ')}</span>
+                <button type="button" onClick={logout}>Uitloggen</button>
+              </>
+            )}
+            {!loading && !user && (
+              <>
+                <NavLink to="/inloggen">Inloggen</NavLink>
+                <NavLink to="/registreren">Registreren</NavLink>
+              </>
+            )}
+          </div>
+        </div>
       </header>
 
-      {/* 4. De pagina die bij de URL hoort */}
-      <main>
+      {/* 6. De pagina die bij de URL hoort */}
+      <main id="inhoud">
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/projecten" element={<ProjectsPage />} />
@@ -54,6 +67,10 @@ export default function App() {
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
+
+      <footer>
+        <p>&copy; 2026 Ali Malfi</p>
+      </footer>
     </>
   )
 }

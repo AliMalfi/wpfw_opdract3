@@ -1,23 +1,21 @@
 import { Link } from 'react-router-dom'
 
-// 1. Eén blogpost; met beheerknoppen als canEdit true is
-export default function BlogpostCard({ blogpost, canEdit, busy, onEdit, onDelete }) {
+// 1. Eén project; met beheerknoppen als canEdit true is
+export default function ProjectCard({ project, canEdit, busy, onEdit, onDelete }) {
   return (
     <article>
       <h2>
-        <Link to={`/blog/${blogpost.id}`}>{blogpost.titel}</Link>
+        <Link to={`/projecten/${project.id}`}>{project.titel}</Link>
       </h2>
-      <p>
-        <time dateTime={blogpost.publicatiedatum}>
-          {new Date(blogpost.publicatiedatum).toLocaleDateString('nl-NL')}
-        </time>
-      </p>
 
-      {/* 2. Alleen zichtbaar voor Editor of Admin */}
+      {/* 2. Categorie in grijs */}
+      <p className="meta">{project.categorie}</p>
+
+      {/* 3. Alleen zichtbaar voor Editor of Admin */}
       {canEdit && (
-        <p>
-          <button type="button" onClick={onEdit} disabled={busy}>Wijzigen</button>{' '}
-          <button type="button" onClick={onDelete} disabled={busy}>Verwijderen</button>
+        <p className="acties">
+          <button type="button" onClick={onEdit} disabled={busy}>Wijzigen</button>
+          <button type="button" className="btn-danger" onClick={onDelete} disabled={busy}>Verwijderen</button>
         </p>
       )}
     </article>
