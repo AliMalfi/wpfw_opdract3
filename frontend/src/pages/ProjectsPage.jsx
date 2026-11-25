@@ -20,36 +20,40 @@ export default function ProjectsPage() {
   const [actieFout, setActieFout] = useState('')
   const [formFouten, setFormFouten] = useState([])
 
-  // 3. Lijst ophalen (ook na opslaan of verwijderen)
-  async function loadProjects(signal) {
-    const data = await getProjects(signal)
-    if (signal?.aborted) return
+  // 3. Lijst opnieuw ophalen (na opslaan of verwijderen)
+  async function loadProjects() {
+    const data = await getProjects()
     setProjects(data)
     setStatus('success')
   }
 
-  // 4. Bij openen van de pagina
+  // 4. Bij openen van de pagina: lijst ophalen
   useEffect(() => {
     const controller = new AbortController()
-    loadProjects(controller.signal).catch((err) => {
-      if (err.name !== 'AbortError') {
-        setError(err.message)
-        setStatus('error')
-      }
-    })
+    getProjects(controller.signal)
+      .then((data) => {
+        setProjects(data)
+        setStatus('success')
+      })
+      .catch((err) => {
+        if (err.name !== 'AbortError') {
+          setError(err.message)
+          setStatus('error')
+        }
+      })
+    // 5. Pagina verlaten? Verzoek annuleren
     return () => controller.abort()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 5. Formulier openen
+  // 6. Formulier openen (null = nieuw, project = wijzigen)
   function openForm(project) {
     setFormFouten([])
     setMessage('')
     setActieFout('')
-    setEditing(project) // null = nieuw
+    setEditing(project)
   }
 
-  // 6. Opslaan: POST (nieuw) of PUT (wijzigen)
+  // 7. Opslaan: POST (nieuw) of PUT (wijzigen)
   async function handleSave(data) {
     setBusy(true)
     setFormFouten([])
@@ -72,7 +76,7 @@ export default function ProjectsPage() {
     }
   }
 
-  // 7. Verwijderen, met bevestiging
+  // 8. Verwijderen, met bevestiging
   async function handleDelete(project) {
     if (!window.confirm(`Weet je zeker dat je "${project.titel}" wilt verwijderen?`)) return
     setBusy(true)
@@ -89,7 +93,7 @@ export default function ProjectsPage() {
     }
   }
 
-  // 8. Laden en fout bij ophalen
+  // 9. Laden en fout bij ophalen
   if (status === 'loading') return <p role="status">Projecten laden…</p>
   if (status === 'error') return <p role="alert">Er ging iets mis: {error}</p>
 
@@ -97,16 +101,16 @@ export default function ProjectsPage() {
     <section>
       <h1>Projecten</h1>
 
-      {/* 9. Uitkomst van een actie */}
+      {/* 10. Uitkomst van een actie */}
       {message && <p role="status">{message}</p>}
       {actieFout && <p role="alert">{actieFout}</p>}
 
-      {/* 10. Knop "Nieuw project" alleen voor Editor/Admin */}
+      {/* 11. Knop "Nieuw project" alleen voor Editor/Admin */}
       {canEdit && editing === undefined && (
         <button type="button" onClick={() => openForm(null)}>Nieuw project</button>
       )}
 
-      {/* 11. Formulier (nieuw of wijzigen) */}
+      {/* 12. Formulier (nieuw of wijzigen) */}
       {editing !== undefined && (
         <ProjectForm
           key={editing?.id ?? 'nieuw'}
@@ -118,7 +122,7 @@ export default function ProjectsPage() {
         />
       )}
 
-      {/* 12. De lijst (of een melding als hij leeg is) */}
+      {/* 13. De lijst (of een melding als hij leeg is) */}
       {projects.length === 0 ? (
         <p>Er zijn nog geen projecten.</p>
       ) : (

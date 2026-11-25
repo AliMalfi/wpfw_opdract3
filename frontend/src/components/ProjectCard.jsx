@@ -1,13 +1,17 @@
 import { Link } from 'react-router-dom'
 
-// 1. Eén project; met beheerknoppen als canEdit true is
-export default function ProjectCard({ project, canEdit, busy, onEdit, onDelete }) {
+// 1. Eén blogpost; met beheerknoppen als canEdit true is
+export default function BlogpostCard({ blogpost, canEdit, busy, onEdit, onDelete }) {
   return (
     <article>
       <h2>
-        <Link to={`/projecten/${project.id}`}>{project.titel}</Link>
+        <Link to={`/blog/${blogpost.id}`}>{blogpost.titel}</Link>
       </h2>
-      <p>{project.categorie}</p>
+      <p>
+        <time dateTime={blogpost.publicatiedatum}>
+          {new Date(blogpost.publicatiedatum).toLocaleDateString('nl-NL')}
+        </time>
+      </p>
 
       {/* 2. Alleen zichtbaar voor Editor of Admin */}
       {canEdit && (
