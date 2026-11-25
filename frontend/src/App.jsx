@@ -5,10 +5,12 @@ import ProjectsPage from './pages/ProjectsPage'
 import ProjectDetailPage from './pages/ProjectDetailPage'
 import BlogpostsPage from './pages/BlogpostsPage'
 import BlogpostDetailPage from './pages/BlogpostDetailPage'
+import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
 import NotFoundPage from './pages/NotFoundPage'
 
 export default function App() {
-  // 1. Wie is er ingelogd? (komt van het prikbord)
+  // 1. Wie is er ingelogd?
   const { user, loading, logout } = useAuth()
 
   return (
@@ -21,7 +23,7 @@ export default function App() {
           <NavLink to="/blog">Blog</NavLink>
         </nav>
 
-        {/* 3. Aanmeldstatus */}
+        {/* 3. Aanmeldstatus: ingelogd of links naar inloggen/registreren */}
         <p role="status">
           {loading && 'Aanmeldstatus controleren…'}
           {!loading && user && (
@@ -30,7 +32,12 @@ export default function App() {
               <button type="button" onClick={logout}>Uitloggen</button>
             </>
           )}
-          {!loading && !user && 'Niet ingelogd'}
+          {!loading && !user && (
+            <>
+              Niet ingelogd · <NavLink to="/inloggen">Inloggen</NavLink> ·{' '}
+              <NavLink to="/registreren">Registreren</NavLink>
+            </>
+          )}
         </p>
       </header>
 
@@ -42,6 +49,8 @@ export default function App() {
           <Route path="/projecten/:id" element={<ProjectDetailPage />} />
           <Route path="/blog" element={<BlogpostsPage />} />
           <Route path="/blog/:id" element={<BlogpostDetailPage />} />
+          <Route path="/inloggen" element={<LoginPage />} />
+          <Route path="/registreren" element={<RegisterPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>

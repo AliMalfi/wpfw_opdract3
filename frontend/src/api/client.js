@@ -51,3 +51,13 @@ export async function apiRequest(path, { body, ...options } = {}) {
   const tekst = await response.text()
   return tekst ? JSON.parse(tekst) : null
 }
+
+// 9. Losse foutteksten uit een ApiError halen (voor formulieren)
+//    - Identity (register): een lijst met { description }
+//    - Validatie ([ApiController]): { errors: { Veld: ["tekst"] } }
+export function foutLijst(err) {
+  const details = err?.details
+  if (Array.isArray(details)) return details.map((d) => d.description)
+  if (details?.errors) return Object.values(details.errors).flat()
+  return []
+}
