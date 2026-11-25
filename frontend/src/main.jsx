@@ -1,14 +1,17 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
+import { AuthProvider } from './auth/AuthContext'
 import './index.css'
 import App from './App.jsx'
 
-// 1. BrowserRouter om de app heen, zodat routes werken
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
-      <App />
+      {/* 1. AuthProvider om de app: elke pagina kan nu useAuth() gebruiken */}
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </BrowserRouter>
   </StrictMode>
 )

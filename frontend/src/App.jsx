@@ -1,4 +1,5 @@
 import { Routes, Route, NavLink } from 'react-router-dom'
+import { useAuth } from './auth/AuthContext'
 import HomePage from './pages/HomePage'
 import ProjectsPage from './pages/ProjectsPage'
 import ProjectDetailPage from './pages/ProjectDetailPage'
@@ -7,18 +8,33 @@ import BlogpostDetailPage from './pages/BlogpostDetailPage'
 import NotFoundPage from './pages/NotFoundPage'
 
 export default function App() {
+  // 1. Wie is er ingelogd? (komt van het prikbord)
+  const { user, loading, logout } = useAuth()
+
   return (
     <>
-      {/* 1. Menu: zichtbaar op elke pagina */}
       <header>
+        {/* 2. Hoofdmenu */}
         <nav aria-label="Hoofdnavigatie">
           <NavLink to="/">Home</NavLink> |{' '}
           <NavLink to="/projecten">Projecten</NavLink> |{' '}
           <NavLink to="/blog">Blog</NavLink>
         </nav>
+
+        {/* 3. Aanmeldstatus */}
+        <p role="status">
+          {loading && 'Aanmeldstatus controleren…'}
+          {!loading && user && (
+            <>
+              Ingelogd als <strong>{user.email}</strong> ({user.rollen.join(', ')}){' '}
+              <button type="button" onClick={logout}>Uitloggen</button>
+            </>
+          )}
+          {!loading && !user && 'Niet ingelogd'}
+        </p>
       </header>
 
-      {/* 2. De pagina die bij de URL hoort */}
+      {/* 4. De pagina die bij de URL hoort */}
       <main>
         <Routes>
           <Route path="/" element={<HomePage />} />
@@ -26,7 +42,6 @@ export default function App() {
           <Route path="/projecten/:id" element={<ProjectDetailPage />} />
           <Route path="/blog" element={<BlogpostsPage />} />
           <Route path="/blog/:id" element={<BlogpostDetailPage />} />
-          {/* 3. Alle andere URL's: 404-pagina */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
