@@ -1,195 +1,180 @@
-# wpfw_opdract3 – Portfolio (React + ASP.NET Core API)
+# Portfolio – Ali Malfi (WPFW opdracht 3 t/m 6)
 
-Mijn portfolio-website: een **React-app (Vite)** die projecten en blogposts ophaalt uit mijn eigen **ASP.NET Core Web API**. De API slaat alles op in **SQL Server** via Entity Framework Core, gebruikt **ASP.NET Core Identity** voor accounts, cookies en rollen, en is getest met een **xUnit**-testproject.
+Persoonlijke portfolio-website met projecten en blogposts. React-frontend, ASP.NET Core Web API (.NET 10) met Identity-cookies en SQL Server via EF Core. Lokaal draait alles met Docker Compose, online draait het in Azure Container Apps en GitHub Actions publiceert elke nieuwe versie.
 
-**Student:** Ali Malfi
+- **Live website:** https://portfolio-web.jollycoast-aab9be34.swedencentral.azurecontainerapps.io
+- **Repository:** https://github.com/AliMalfi/wpfw_opdract3
 
-## Technieken
-| Deel | Technieken |
-|---|---|
-| Frontend | React, Vite, React Router, JavaScript, CSS (mobile-first) |
-| Backend | .NET 10 – ASP.NET Core Web API (controllers), Swagger UI |
-| Database | Entity Framework Core 10 + SQL Server Express |
-| Beveiliging | ASP.NET Core Identity (gebruikers, rollen, cookie-login) |
-| Tests | xUnit + Microsoft.AspNetCore.Mvc.Testing (35 integratietests via HTTP) |
+| Map / bestand | Inhoud |
+| --- | --- |
+| `wpfw_opdract3/` | ASP.NET Core Web API (controllers, services, Identity, EF Core, migraties) + `Dockerfile` |
+| `wpfw_opdracht3.Tests/` | xUnit-tests met WebApplicationFactory (37 tests) |
+| `frontend/` | React + Vite, `Dockerfile` en `nginx.conf.template` |
+| `compose.yaml` | Lokale services `db`, `api`, `web` en het volume `portfolio-data` |
+| `.env.example` | Voorbeeld van de lokale geheimen (kopieer naar `.env`) |
+| `.github/workflows/ci-cd.yml` | GitHub Actions: verify → publish → deploy |
 
-## Projectstructuur
-| Map | Inhoud |
-|---|---|
-| `frontend/` | **React-app** (Vite) |
-| `frontend/src/api` | API-functies: `client.js` (gedeelde fetch), `projects.js`, `blogposts.js`, `auth.js` |
-| `frontend/src/auth` | `AuthContext.jsx`: ingelogde gebruiker, rol en `canEdit` |
-| `frontend/src/pages` | Pagina's: home, projecten, blog, details, inloggen, registreren, 404 |
-| `frontend/src/components` | Kaarten en formulieren voor projecten en blogposts |
-| `wpfw_opdract3/` | **ASP.NET Core API** |
-| `wpfw_opdract3/Controllers` | `ProjectsController`, `BlogpostsController`, `AuthController` |
-| `wpfw_opdract3/Services` | Logica + omzetting entiteit ↔ DTO |
-| `wpfw_opdract3/Data` | `AppDbContext` (IdentityDbContext) en `RoleSeeder` |
-| `wpfw_opdract3/Models`, `DTOs`, `Auth` | Modellen, DTO's, rol- en policynamen |
-| `wpfw_opdract3/Scripts` | `rollen-toekennen.sql` (lokaal Editor/Admin maken) |
-| `wpfw_opdracht3.Tests/` | xUnit-testproject |
-
-## Vereisten
-- .NET 10 SDK
-- Node.js 22 of hoger (met npm)
-- SQL Server Express (`.\SQLEXPRESS`), inloggen met Windows-account
-- SQL Server Management Studio (voor het rolscript)
-
----
-
-## 1. SQL Server en database
-Zorg dat **SQL Server Express** draait. De connectionstring staat in `wpfw_opdract3/appsettings.json`:
-
-```json
-"DefaultConnection": "Server=.\\SQLEXPRESS;Database=PortfolioDb;Trusted_Connection=True;TrustServerCertificate=True;"
-```
-
-De database en alle tabellen (ook de **Identity-tabellen** zoals `AspNetUsers` en `AspNetRoles`) worden **automatisch aangemaakt bij het opstarten** van de API: `RoleSeeder` voert `Database.MigrateAsync()` uit en maakt de rollen **Gast**, **Editor** en **Admin** aan.
-
-Handmatig migreren kan ook:
-```bash
-dotnet ef database update --project wpfw_opdract3
-```
-
-## 2. API starten
-Vanuit de hoofdmap van de repository:
-```bash
-dotnet run --project wpfw_opdract3 --launch-profile https
-```
-- De API draait op `https://localhost:7101`
-- Swagger UI: `https://localhost:7101/`
-
-> Gebruik het profiel **https**: de Vite-proxy stuurt verzoeken naar `https://localhost:7101`.
-
-## 3. React starten
-In een **tweede terminal**:
-```bash
-cd frontend
-npm install
-npm run dev
-```
-- De website draait op `http://localhost:5173`
-- `npm install` is alleen de eerste keer nodig (en na nieuwe pakketten).
-
-## 4. Testgebruikers en rollen
-Er staan **geen wachtwoorden of sleutels** in de repository of in de frontendcode.
-
-1. **Gast:** registreer via de website (`/registreren`) of via `POST /api/auth/register`. Iedere nieuwe gebruiker krijgt automatisch de rol **Gast**. Publieke registratie kent nooit Editor of Admin toe.
-2. **Editor en Admin:** registreer eerst `editor@test.nl` en `admin@test.nl` (met een eigen wachtwoord).
-3. Open `wpfw_opdract3/Scripts/rollen-toekennen.sql` in SQL Server Management Studio en voer het uit (**F5**). Het script vervangt de rol Gast door **Editor** of **Admin**.
-4. **Log opnieuw in.** De rollen worden bij het inloggen in de cookie gezet, dus na een rolwijziging is een nieuwe login nodig.
-
-Wachtwoordregels (Identity): minimaal 6 tekens, met hoofdletter, kleine letter, cijfer en speciaal teken.
-
----
-
-## 5. Hoe frontend, API en database samenwerken
+## Architectuur
 
 ```mermaid
 flowchart LR
-    A["React-component<br/>(bijv. ProjectsPage)"] -->|roept aan| B["api/projects.js<br/>+ api/client.js"]
-    B -->|"fetch /api/... (+ cookie)"| C["Vite-proxy<br/>localhost:5173"]
-    C -->|doorsturen| D["ASP.NET Core API<br/>localhost:7101"]
-    D -->|"1. UseAuthentication<br/>leest cookie → wie ben je?"| E["2. UseAuthorization<br/>[Authorize(Policy = CanEdit)]<br/>→ Editor/Admin?"]
-    E --> F["Controller → Service<br/>→ AppDbContext"]
-    F --> G[("SQL Server<br/>PortfolioDb")]
-    G -->|data| F
-    F -->|"JSON + statuscode"| B
-    B -->|"state → scherm"| A
+    B["Browser<br/>één HTTPS-adres"] -->|"HTTPS"| W["portfolio-web<br/>Nginx + React-build<br/>(Container App)"]
+    W -->|"/api/* doorsturen"| A["portfolio-api<br/>ASP.NET Core<br/>(Container App)"]
+    A -->|"EF Core, TLS"| D[("Azure SQL Database<br/>PortfolioDb")]
+    R["Azure Container Registry<br/>portfolio-api + portfolio-web"] -.->|"image pull"| W
+    R -.->|"image pull"| A
+    G["GitHub Actions"] -->|"push images (tag = commit-SHA)"| R
+    G -->|"az containerapp update"| A
+    G -->|"az containerapp update"| W
 ```
 
-### De Vite-proxy
-In `frontend/vite.config.js` staat een proxy: alles wat met `/api` begint, stuurt Vite door naar `https://localhost:7101`. Daardoor:
-- praat React met **hetzelfde adres** (`localhost:5173`), dus er is **geen CORS-instelling** nodig;
-- stuurt de browser de **Identity-cookie** gewoon mee;
-- staat er nergens een API-adres of sleutel in de React-code.
+Lokaal is het hetzelfde, maar dan met Docker Compose: `web` (Nginx op poort 8080) stuurt `/api` door naar `api:8080` en de API praat met de SQL Server-container `db`. De browser gebruikt dus altijd één adres, waardoor de Identity-cookie gewoon meegaat.
 
-### Een GET-verzoek (projecten bekijken)
-1. React Router opent `ProjectsPage`.
-2. `useEffect` roept `getProjects()` aan (`api/projects.js` → `api/client.js`).
-3. `fetch('/api/Projects')` gaat via de proxy naar de API.
-4. `ProjectsController` → `ProjectService` → `AppDbContext` → SQL Server.
-5. De API stuurt JSON terug; React bewaart het in state (`setProjects`) en toont de kaarten.
-6. Tijdens laden, bij een lege lijst, een fout of een onbekend id toont React een passende melding.
+## 1. Lokaal starten met Docker Compose
 
-### Een schrijfactie (project toevoegen)
-1. Editor/Admin vult `ProjectForm` in; React controleert de invoer eerst zelf.
-2. `createProject()` doet `POST /api/Projects` met `credentials: 'include'`: de **cookie** gaat mee.
-3. **Identity herkent de gebruiker**: `app.UseAuthentication()` leest de cookie.
-4. **De API controleert de rol**: `app.UseAuthorization()` + `[Authorize(Policy = Policies.CanEdit)]` (Editor of Admin).
-   - geen cookie → **401**, rol Gast → **403**, ongeldige invoer → **400** (DTO-validatie).
-5. Gelukt → **201**; React toont een melding en haalt de lijst opnieuw op.
+Benodigd: Docker Desktop (Linux-containers).
 
-### Aanmelden in React
-- **Inloggen:** `POST /api/auth/login` → de API zet de cookie (`HttpOnly`, niet leesbaar voor JavaScript).
-- **Na verversen (F5):** `AuthContext` vraagt `GET /api/auth/me` → `{ email, rollen }` of **401** (niet ingelogd).
-- **Beheerknoppen** zijn alleen zichtbaar als `canEdit` waar is (Editor/Admin). Dat is alleen voor de duidelijkheid: **de API controleert zelf bij elke schrijfactie**.
-- React bewaart **geen wachtwoorden of tokens** in de code of in `localStorage`.
+1. Maak je eigen `.env` (staat in `.gitignore`, wordt nooit gecommit):
 
----
+   ```powershell
+   Copy-Item .env.example .env
+   ```
 
-## 6. Cookies en CSRF vóór een deployment
-Lokaal werkt alles via de proxy op **één origin**. Bij een echte deployment moet je hierop letten:
+   Vul `MSSQL_SA_PASSWORD` in met een zelfgekozen sterk wachtwoord (minimaal 8 tekens, hoofdletter, kleine letter, cijfer en teken, zonder `;`).
 
-**Cookie-instellingen**
-- **Secure:** cookie alleen via HTTPS versturen (`CookieSecurePolicy.Always`).
-- **HttpOnly:** blijft aan, zodat JavaScript de cookie niet kan lezen (bescherming tegen XSS).
-- **SameSite:**
-  - Frontend en API op **hetzelfde domein** (aanrader): `SameSite=Lax` of `Strict` volstaat.
-  - Frontend en API op **verschillende domeinen**: `SameSite=None` + `Secure` is nodig. Dan ook een **CORS-policy** met alleen het frontend-domein (`WithOrigins(...)`) en `AllowCredentials()`.
-- **Verlooptijd:** stel `ExpireTimeSpan` / `SlidingExpiration` bewust in.
+2. Bouwen en starten:
 
-**CSRF (Cross-Site Request Forgery)**
-- Omdat de browser de cookie **automatisch** meestuurt, kan een andere website proberen namens de gebruiker een verzoek te sturen.
-- `SameSite=Lax/Strict` blokkeert de meeste van deze verzoeken. Is `SameSite=None` nodig, voeg dan **antiforgery-tokens** toe (ASP.NET Core `IAntiforgery`: de API geeft een token, React stuurt het mee in een header, de API controleert het bij POST/PUT/DELETE).
-- De API accepteert alleen JSON en CORS staat alleen het eigen frontend-domein toe.
+   ```powershell
+   docker compose up -d --build
+   docker compose ps
+   ```
 
-**Overig**
-- Connectionstring en andere geheimen via **omgevingsvariabelen** of een secrets-manager, niet in de repository.
-- Overal **HTTPS** (met HSTS).
+   Je ziet `db` (healthy), `api` en `web`. Open **http://localhost:8080**.
 
----
+3. Data blijft bewaard in het benoemde volume `portfolio-data`. Controle:
 
-## 7. Tests en build
-**Backendtests** (vanuit de hoofdmap):
-```bash
-dotnet test
+   ```powershell
+   docker compose up -d --force-recreate
+   ```
+
+   Gebruik **nooit** `docker compose down -v`: `-v` verwijdert ook het volume en dus je lokale data.
+
+De SQL Server-container is vanaf je laptop bereikbaar op `127.0.0.1,14330` (bijvoorbeeld in SSMS, login `sa`).
+
+## 2. Ontwikkelen zonder containers
+
+```powershell
+dotnet run --project wpfw_opdract3 --launch-profile https   # API op https://localhost:7101
+cd frontend
+npm install
+npm run dev                                                 # React op http://localhost:5173
 ```
-- 35 tests via `WebApplicationFactory` en echte HTTP-requests, waaronder 2 tests voor `GET /api/auth/me`.
-- Aparte testdatabase **`PortfolioDb_Test`**, die bij elke testrun opnieuw wordt aangemaakt. `PortfolioDb` wordt niet aangeraakt.
 
-**Frontend controleren en bouwen** (in `frontend/`):
-```bash
+De Vite-proxy stuurt `/api` door naar `https://localhost:7101`. De API gebruikt dan de connection string uit `appsettings.Development.json` (SQL Server Express).
+
+## 3. Configuratie
+
+Geen enkel wachtwoord staat in de repository. Waarden komen uit omgevingsvariabelen.
+
+| Instelling | Waar | Doel |
+| --- | --- | --- |
+| `MSSQL_SA_PASSWORD` | `.env` (lokaal) | Wachtwoord van de lokale SQL Server-container |
+| `ConnectionStrings__DefaultConnection` | `compose.yaml` (lokaal), **secret** `db-conn` in de Container App (Azure) | Verbinding met de database |
+| `ASPNETCORE_ENVIRONMENT` | `Development` lokaal, `Production` in Azure | In Production: geen Swagger, cookies alleen via HTTPS |
+| `API_URL` | `web`-container | Waar Nginx `/api` naartoe stuurt (`http://api:8080` lokaal, het HTTPS-adres van `portfolio-api` in Azure) |
+| `TEST_CONNECTION_STRING` | GitHub Actions | Tijdelijke testdatabase in CI (lokaal: `.\SQLEXPRESS`) |
+| `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `ACR_NAME`, `RESOURCE_GROUP` | GitHub → Settings → Secrets and variables → Actions → **Variables** | Inloggen bij Azure via OIDC (geen wachtwoord) en namen van de resources |
+
+## 4. Migraties
+
+Bij het opstarten voert de API de EF Core-migraties automatisch uit (`RoleSeeder.SeedRolesAsync` → `Database.MigrateAsync()`) en maakt de rollen Gast, Editor en Admin aan. Dat geldt lokaal, in Docker en in Azure.
+
+Handmatig uitvoeren kan ook, bijvoorbeeld op de Docker-database:
+
+```powershell
+$env:ConnectionStrings__DefaultConnection = "Server=127.0.0.1,14330;Database=PortfolioDb;User Id=sa;Password=JOUW_WACHTWOORD;TrustServerCertificate=True;"
+dotnet ef database update --project wpfw_opdract3
+```
+
+Een nieuwe migratie maken: `dotnet ef migrations add NaamVanMigratie --project wpfw_opdract3`.
+
+## 5. Testrollen
+
+Er bestaan geen accounts met een standaardwachtwoord.
+
+1. Registreer via de website (lokaal of live). Een nieuw account krijgt altijd de rol **Gast**.
+2. Maak het account Editor of Admin met een vertrouwde beheerhandeling: verbind met SSMS met de database (lokaal `127.0.0.1,14330`, Azure `sql-portfolio-ali-25058932.database.windows.net` met database `PortfolioDb`) en voer `wpfw_opdract3/Scripts/rollen-toekennen.sql` uit met het juiste e-mailadres en de rol.
+3. Log opnieuw in, zodat de nieuwe rol in de cookie komt.
+
+| Rol | Mag |
+| --- | --- |
+| Niet ingelogd / Gast | Lijsten en details bekijken |
+| Editor / Admin | Ook toevoegen, wijzigen en verwijderen (policy `CanEdit`) |
+
+## 6. Tests en build
+
+```powershell
+dotnet test            # vanuit de hoofdmap: 37 tests
+cd frontend
+npm ci
 npm run lint
 npm run build
 ```
-`npm run build` maakt een geoptimaliseerde versie in `frontend/dist/` (staat in `.gitignore`).
 
----
+De tests starten de hele API met WebApplicationFactory en een aparte database `PortfolioDb_Test`. In GitHub Actions start de workflow daarvoor een tijdelijke SQL Server-container met een willekeurig wachtwoord.
 
-## Endpoints
-| Methode | Route | Toegang |
-|---|---|---|
-| GET | `/api/projects` | iedereen |
-| GET | `/api/projects/{id}` | iedereen |
-| POST | `/api/projects` | Editor, Admin |
-| PUT | `/api/projects/{id}` | Editor, Admin |
-| DELETE | `/api/projects/{id}` | Editor, Admin |
-| GET | `/api/blogposts` | iedereen |
-| GET | `/api/blogposts/{id}` | iedereen |
-| POST | `/api/blogposts` | Editor, Admin |
-| PUT | `/api/blogposts/{id}` | Editor, Admin |
-| DELETE | `/api/blogposts/{id}` | Editor, Admin |
-| POST | `/api/auth/register` | iedereen (krijgt rol Gast) |
-| POST | `/api/auth/login` | iedereen |
-| POST | `/api/auth/logout` | iedereen |
-| GET | `/api/auth/me` | ingelogd (anders 401) |
+## 7. Beveiliging
 
-## React-routes
-| Route | Pagina |
-|---|---|
-| `/` | Home |
-| `/projecten`, `/projecten/:id` | Projectenlijst en detail |
-| `/blog`, `/blog/:id` | Bloglijst en detail |
-| `/inloggen`, `/registreren` | Aanmelden |
-| `*` | 404 – pagina niet gevonden |
+- **Cookies:** de Identity-cookie is `HttpOnly`, `SameSite=Strict` en in Production altijd `Secure` (alleen via HTTPS).
+- **CSRF:** React haalt vóór elke POST/PUT/DELETE een token op via `GET /api/security/csrf` en stuurt het mee in de header `X-CSRF-TOKEN`. De `CsrfFilter` weigert schrijfacties zonder geldig token met 400. Login- en rolcontrole blijven daarnaast gewoon nodig.
+- **Data Protection:** de sleutels die de cookie versleutelen staan in de database (tabel `DataProtectionKeys`). Daardoor blijven gebruikers ingelogd als een container vervangen wordt.
+- **Forwarded headers:** Azure en Nginx stoppen HTTPS vóór Kestrel; de API neemt `X-Forwarded-Proto` over, zodat hij weet dat de bezoeker HTTPS gebruikte.
+
+## 8. Azure
+
+| Resource | Naam |
+| --- | --- |
+| Resource group (Sweden Central) | `rg-portfolio-ali` |
+| Container Registry (Basic) | `acrportfolioali25058932` |
+| Container Apps-omgeving | `cae-portfolio` |
+| Container Apps | `portfolio-web` (website), `portfolio-api` (API) |
+| Azure SQL | server `sql-portfolio-ali-25058932`, database `PortfolioDb` (gratis aanbod, serverless) |
+| Identiteiten | `id-portfolio` (AcrPull, images ophalen), `id-github-portfolio` (AcrPush + Contributor, voor GitHub Actions via OIDC) |
+
+Opmerkingen:
+
+- Azure for Students maakt een Container Apps **Express**-omgeving. Die kent geen interne service discovery en geen system-assigned identity. Daarom haalt de API zijn image op met de user-assigned identity `id-portfolio` en heeft de API een eigen HTTPS-adres waar Nginx naartoe doorstuurt. De API blijft beschermd door login, rollen, CSRF-token en `SameSite=Strict`-cookies.
+- De gratis database pauzeert na een tijd zonder gebruik. Het eerste verzoek daarna duurt ongeveer een minuut.
+
+## 9. Opnieuw publiceren
+
+Elke push naar `master` start `.github/workflows/ci-cd.yml`:
+
+1. **verify** – `dotnet test` (met tijdelijke SQL Server) en `npm ci` + `npm run build`. Faalt dit, dan wordt er niets gepubliceerd.
+2. **publish** – bouwt `portfolio-api` en `portfolio-web` en pusht ze naar ACR met de commit-SHA als tag.
+3. **deploy** – `az containerapp update` zet beide apps op de nieuwe image.
+
+Pull requests voeren alleen **verify** uit. Handmatig starten kan via **Actions → Portfolio CI en CD → Run workflow**. Het testproject wordt niet gedeployed.
+
+Terug naar een vorige versie:
+
+```powershell
+az containerapp update --name portfolio-web --resource-group rg-portfolio-ali --image acrportfolioali25058932.azurecr.io/portfolio-web:<oude-commit-sha>
+```
+
+## 10. Endpoints
+
+| Methode en route | Toegang | Succes |
+| --- | --- | --- |
+| GET `/api/Projects`, `/api/Blogposts` | Publiek | 200 |
+| GET `/api/Projects/{id}`, `/api/Blogposts/{id}` | Publiek | 200, of 404 |
+| POST `/api/Projects`, `/api/Blogposts` | Editor of Admin + CSRF-token | 201 |
+| PUT `/api/Projects/{id}`, `/api/Blogposts/{id}` | Editor of Admin + CSRF-token | 204, of 404 |
+| DELETE `/api/Projects/{id}`, `/api/Blogposts/{id}` | Editor of Admin + CSRF-token | 204, of 404 |
+| POST `/api/Auth/register` | Publiek + CSRF-token | 200, nieuwe gebruiker is Gast |
+| POST `/api/Auth/login` | Publiek + CSRF-token | 200 met cookie |
+| POST `/api/Auth/logout` | Ingelogd + CSRF-token | 200 |
+| GET `/api/Auth/me` | Ingelogd | 200 met e-mail en rollen, anders 401 |
+| GET `/api/security/csrf` | Publiek | 200 met token |
+
+Niet ingelogd bij een schrijfactie → 401, Gast → 403, ontbrekend CSRF-token → 400.
