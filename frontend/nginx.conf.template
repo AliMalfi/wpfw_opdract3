@@ -1,17 +1,23 @@
+# 1. Kwam de bezoeker binnen via https (Azure)? Geef dat door.
+#    Geen header (lokaal)? Gebruik dan gewoon http.
+map $http_x_forwarded_proto $echte_proto {
+    default $http_x_forwarded_proto;
+    ""      $scheme;
+}
+
 server {
     listen 8080;
     root /usr/share/nginx/html;
 
-    # 1. Alles onder /api doorsturen naar de API-container (zoals de Vite-proxy)
+    # 2. Alles onder /api/ doorsturen naar de backend (API_URL)
     location /api/ {
         proxy_pass ${API_URL};
         proxy_ssl_server_name on;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Proto $echte_proto;
     }
 
-    # 2. React Router: onbekende paden (zoals /projecten/7) krijgen index.html,
-    #    zodat verversen van een detailpagina werkt
+    # 3. React Router: onbekend pad -> index.html (verversen werkt)
     location / {
         try_files $uri $uri/ /index.html;
     }
