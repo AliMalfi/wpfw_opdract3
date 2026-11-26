@@ -69,7 +69,7 @@ export default function App() {
       </main>
 
       <footer>
-        <p>&copy; 2026 Ali Malfi · versie 1</p>
+        <p>&copy; 2026 Ali Malfi · versie 2</p>
       </footer>
     </>
   )
