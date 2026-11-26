@@ -1,0 +1,18 @@
+server {
+    listen 8080;
+    root /usr/share/nginx/html;
+
+    # 1. Alles onder /api doorsturen naar de API-container (zoals de Vite-proxy)
+    location /api/ {
+        proxy_pass ${API_URL};
+        proxy_ssl_server_name on;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # 2. React Router: onbekende paden (zoals /projecten/7) krijgen index.html,
+    #    zodat verversen van een detailpagina werkt
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
