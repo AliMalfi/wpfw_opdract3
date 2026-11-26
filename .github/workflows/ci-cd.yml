@@ -1,0 +1,119 @@
+# CI/CD voor mijn portfolio
+# 1. verify  = backend-tests + React-build (bij elke push en pull request)
+# 2. publish = 2 images bouwen en naar Azure Container Registry sturen (alleen master)
+# 3. deploy  = Azure Container Apps de nieuwe images laten gebruiken (alleen master)
+name: Portfolio CI en CD
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Tests en React-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code ophalen
+        uses: actions/checkout@v4
+
+      - name: .NET 10 installeren
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # Tijdelijke SQL Server alleen voor de tests, met een willekeurig wachtwoord
+      - name: Tijdelijke SQL Server voor de tests starten
+        run: |
+          SA_PASSWORD="Ci$(openssl rand -hex 12)!"
+          echo "::add-mask::$SA_PASSWORD"
+          docker run -d --name testsql -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD="$SA_PASSWORD" -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest
+          for i in $(seq 1 40); do
+            if docker exec testsql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$SA_PASSWORD" -C -Q "SELECT 1" > /dev/null 2>&1; then
+              echo "SQL Server is klaar"
+              break
+            fi
+            sleep 3
+          done
+          echo "TEST_CONNECTION_STRING=Server=localhost,1433;Database=PortfolioDb_Test;User Id=sa;Password=$SA_PASSWORD;TrustServerCertificate=True;" >> "$GITHUB_ENV"
+
+      - name: Backend-tests (xUnit)
+        run: dotnet test wpfw_opdract3.slnx -c Release
+
+      - name: Node 22 installeren
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: React-build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+  publish:
+    name: Images bouwen en naar ACR sturen
+    needs: verify
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      REGISTRY: ${{ vars.ACR_NAME }}.azurecr.io
+    steps:
+      - name: Code ophalen
+        uses: actions/checkout@v4
+
+      - name: Inloggen bij Azure (OIDC, zonder wachtwoord)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Inloggen bij de registry
+        run: az acr login --name "${{ vars.ACR_NAME }}"
+
+      - name: API-image bouwen en pushen
+        run: |
+          docker build -t "$REGISTRY/portfolio-api:${{ github.sha }}" -f wpfw_opdract3/Dockerfile .
+          docker push "$REGISTRY/portfolio-api:${{ github.sha }}"
+
+      - name: Web-image bouwen en pushen
+        run: |
+          docker build -t "$REGISTRY/portfolio-web:${{ github.sha }}" -f frontend/Dockerfile .
+          docker push "$REGISTRY/portfolio-web:${{ github.sha }}"
+
+  deploy:
+    name: Nieuwe versie in Azure zetten
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      REGISTRY: ${{ vars.ACR_NAME }}.azurecr.io
+    steps:
+      - name: Inloggen bij Azure (OIDC, zonder wachtwoord)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Azure CLI-uitbreidingen zonder vraag installeren
+        run: az config set extension.use_dynamic_install=yes_without_prompt
+
+      - name: API bijwerken naar de nieuwe image
+        run: az containerapp update --name portfolio-api --resource-group "${{ vars.RESOURCE_GROUP }}" --image "$REGISTRY/portfolio-api:${{ github.sha }}"
+
+      - name: Website bijwerken naar de nieuwe image
+        run: az containerapp update --name portfolio-web --resource-group "${{ vars.RESOURCE_GROUP }}" --image "$REGISTRY/portfolio-web:${{ github.sha }}"
