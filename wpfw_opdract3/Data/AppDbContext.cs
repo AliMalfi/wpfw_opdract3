@@ -1,11 +1,13 @@
-﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using wpfw_opdracht3.Models;
 
 namespace wpfw_opdracht3.Data;
 
 // IdentityDbContext = gewone DbContext + tabellen voor gebruikers en rollen
-public class AppDbContext : IdentityDbContext<User>
+// IDataProtectionKeyContext = ook een tabel voor de sleutels van de inlog-cookies
+public class AppDbContext : IdentityDbContext<User>, IDataProtectionKeyContext
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
@@ -14,9 +16,12 @@ public class AppDbContext : IdentityDbContext<User>
     public DbSet<Project> Projects { get; set; }
     public DbSet<Blogpost> Blogposts { get; set; }
 
+    // NIEUW: hier worden de sleutels bewaard, zodat cookies geldig blijven na een nieuwe container
+    public DbSet<DataProtectionKey> DataProtectionKeys { get; set; } = null!;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        base.OnModelCreating(modelBuilder);                  // NIEUW: eerst Identity instellen
+        base.OnModelCreating(modelBuilder);                  // eerst Identity instellen
         modelBuilder.Entity<Blogpost>().HasData(
             new Blogpost
             {

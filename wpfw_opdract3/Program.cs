@@ -1,5 +1,6 @@
 namespace wpfw_opdracht3;
 
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -23,16 +24,22 @@ public class Program
         builder.Services.AddDbContext<AppDbContext>(options =>
             options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-        // 2. Identity aanzetten (gebruikers + rollen, opgeslagen in onze database)
+        // 2. NIEUW: sleutels voor cookies in de DATABASE bewaren (niet in de container)
+        //    -> na een nieuwe versie blijft iedereen ingelogd
+        builder.Services.AddDataProtection()
+            .PersistKeysToDbContext<AppDbContext>()
+            .SetApplicationName("Portfolio");
+
+        // 3. Identity aanzetten (gebruikers + rollen, opgeslagen in onze database)
         builder.Services.AddIdentity<User, IdentityRole>()
             .AddEntityFrameworkStores<AppDbContext>();
 
-        // 3. Policy: alleen Editor of Admin mag schrijven (POST, PUT, DELETE)
+        // 4. Policy: alleen Editor of Admin mag schrijven (POST, PUT, DELETE)
         builder.Services.AddAuthorizationBuilder()
             .AddPolicy(Policies.CanEdit, policy =>
                 policy.RequireRole(Roles.Editor, Roles.Admin));
 
-        // 4. Inlog-cookie veilig maken + 401/403 in plaats van doorsturen
+        // 5. Inlog-cookie veilig maken + 401/403 in plaats van doorsturen
         builder.Services.ConfigureApplicationCookie(options =>
         {
             options.Cookie.HttpOnly = true;                 // JavaScript kan de cookie niet lezen
@@ -54,7 +61,7 @@ public class Program
             };
         });
 
-        // 5. CSRF-bescherming: token komt in de header X-CSRF-TOKEN
+        // 6. CSRF-bescherming: token komt in de header X-CSRF-TOKEN
         builder.Services.AddAntiforgery(options =>
         {
             options.HeaderName = "X-CSRF-TOKEN";
@@ -64,7 +71,7 @@ public class Program
             options.Cookie.SameSite = SameSiteMode.Strict;
         });
 
-        // 6. Achter Nginx/Azure: de echte "https" en het IP-adres overnemen
+        // 7. Achter Nginx/Azure: de echte "https" en het IP-adres overnemen
         builder.Services.Configure<ForwardedHeadersOptions>(options =>
         {
             options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
@@ -72,11 +79,11 @@ public class Program
             options.KnownProxies.Clear();
         });
 
-        // 7. Services via Dependency Injection (interface -> implementatie, per request)
+        // 8. Services via Dependency Injection (interface -> implementatie, per request)
         builder.Services.AddScoped<IProjectService, ProjectService>();
         builder.Services.AddScoped<IBlogpostService, BlogpostService>();
 
-        // 8. Controllers + CSRF-filter op ALLE controllers
+        // 9. Controllers + CSRF-filter op ALLE controllers
         builder.Services.AddControllers(options => options.Filters.Add<CsrfFilter>());
         builder.Services.AddRouting();
         builder.Services.AddEndpointsApiExplorer();
@@ -101,7 +108,7 @@ public class Program
         app.UseAuthorization();    // 2. Wat mag jij?
         app.MapControllers();
 
-        // Rollen Gast, Editor en Admin aanmaken (als ze nog niet bestaan)
+        // Rollen Gast, Editor en Admin aanmaken (en migraties uitvoeren)
         await RoleSeeder.SeedRolesAsync(app.Services);
 
         app.Run();
