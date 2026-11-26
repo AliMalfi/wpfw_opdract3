@@ -17,21 +17,42 @@ export class ApiError extends Error {
   }
 }
 
-// 3. Eén functie voor álle verzoeken naar de API
+// 3. Deze methodes veranderen niets → geen CSRF-token nodig
+const veiligeMethodes = ['GET', 'HEAD', 'OPTIONS']
+
+// 4. Vers CSRF-token ophalen bij de API (de cookie wordt automatisch gezet)
+async function haalCsrfToken() {
+  const response = await fetch('/api/security/csrf', { credentials: 'include' })
+  if (!response.ok) {
+    throw new ApiError(response.status, 'Beveiligingstoken ophalen is mislukt.')
+  }
+  const data = await response.json()
+  return data.token
+}
+
+// 5. Eén functie voor álle verzoeken naar de API
 export async function apiRequest(path, { body, ...options } = {}) {
+  const methode = (options.method ?? 'GET').toUpperCase()
+
+  // 6. Bij POST, PUT en DELETE: eerst een vers token ophalen
+  const csrfHeader = veiligeMethodes.includes(methode)
+    ? {}
+    : { 'X-CSRF-TOKEN': await haalCsrfToken() }
+
   const response = await fetch(`/api${path}`, {
     ...options,
-    credentials: 'include', // 4. cookie altijd meesturen
+    credentials: 'include', // 7. cookie altijd meesturen
     headers: {
-      // 5. Alleen bij een body: zeggen dat het JSON is
+      // 8. Alleen bij een body: zeggen dat het JSON is
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      ...csrfHeader,
       ...options.headers,
     },
-    // 6. JavaScript-object omzetten naar JSON-tekst
+    // 9. JavaScript-object omzetten naar JSON-tekst
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   })
 
-  // 7. Fout (geen 2xx)? Dan een ApiError gooien met een nette tekst
+  // 10. Fout (geen 2xx)? Dan een ApiError gooien met een nette tekst
   if (!response.ok) {
     let details = null
     try {
@@ -46,13 +67,13 @@ export async function apiRequest(path, { body, ...options } = {}) {
     )
   }
 
-  // 8. 204 No Content of leeg antwoord → null, anders JSON
+  // 11. 204 No Content of leeg antwoord → null, anders JSON
   if (response.status === 204) return null
   const tekst = await response.text()
   return tekst ? JSON.parse(tekst) : null
 }
 
-// 9. Losse foutteksten uit een ApiError halen (voor formulieren)
+// 12. Losse foutteksten uit een ApiError halen (voor formulieren)
 //    - Identity (register): een lijst met { description }
 //    - Validatie ([ApiController]): { errors: { Veld: ["tekst"] } }
 export function foutLijst(err) {

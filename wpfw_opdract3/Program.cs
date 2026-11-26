@@ -1,8 +1,9 @@
 namespace wpfw_opdracht3;
 
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
-using wpfw_opdracht3.Auth;
 using Microsoft.EntityFrameworkCore;
+using wpfw_opdracht3.Auth;
 using wpfw_opdracht3.Data;
 using wpfw_opdracht3.Models;
 using wpfw_opdracht3.Services;
@@ -13,22 +14,31 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
+        // Lokaal (Development) mag http, online (Production) ALLEEN https
+        var cookieBeleid = builder.Environment.IsDevelopment()
+            ? CookieSecurePolicy.SameAsRequest
+            : CookieSecurePolicy.Always;
+
         // 1. Connection string en DbContext registreren
         builder.Services.AddDbContext<AppDbContext>(options =>
-        options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+            options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-        // Identity aanzetten (gebruikers + rollen, opgeslagen in onze database)
+        // 2. Identity aanzetten (gebruikers + rollen, opgeslagen in onze database)
         builder.Services.AddIdentity<User, IdentityRole>()
             .AddEntityFrameworkStores<AppDbContext>();
 
-        // Policy: alleen Editor of Admin mag schrijven (POST, PUT, DELETE)
+        // 3. Policy: alleen Editor of Admin mag schrijven (POST, PUT, DELETE)
         builder.Services.AddAuthorizationBuilder()
             .AddPolicy(Policies.CanEdit, policy =>
                 policy.RequireRole(Roles.Editor, Roles.Admin));
 
-        // API: geen doorsturen naar een loginpagina, maar 401 / 403 teruggeven
+        // 4. Inlog-cookie veilig maken + 401/403 in plaats van doorsturen
         builder.Services.ConfigureApplicationCookie(options =>
         {
+            options.Cookie.HttpOnly = true;                 // JavaScript kan de cookie niet lezen
+            options.Cookie.SecurePolicy = cookieBeleid;     // online alleen via https
+            options.Cookie.SameSite = SameSiteMode.Strict;  // niet meesturen vanaf andere websites
+
             // Niet ingelogd -> 401
             options.Events.OnRedirectToLogin = context =>
             {
@@ -44,20 +54,38 @@ public class Program
             };
         });
 
-        // Registreer de ProjectService via Dependency Injection: koppel de interface aan de concrete implementatie per HTTP-request
+        // 5. CSRF-bescherming: token komt in de header X-CSRF-TOKEN
+        builder.Services.AddAntiforgery(options =>
+        {
+            options.HeaderName = "X-CSRF-TOKEN";
+            options.Cookie.Name = "portfolio.csrf";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SecurePolicy = cookieBeleid;
+            options.Cookie.SameSite = SameSiteMode.Strict;
+        });
+
+        // 6. Achter Nginx/Azure: de echte "https" en het IP-adres overnemen
+        builder.Services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+            options.KnownIPNetworks.Clear();   // de proxy draait in een andere container
+            options.KnownProxies.Clear();
+        });
+
+        // 7. Services via Dependency Injection (interface -> implementatie, per request)
         builder.Services.AddScoped<IProjectService, ProjectService>();
-        //blog
         builder.Services.AddScoped<IBlogpostService, BlogpostService>();
 
-        // Add services to the container.
-        builder.Services.AddControllers();
+        // 8. Controllers + CSRF-filter op ALLE controllers
+        builder.Services.AddControllers(options => options.Filters.Add<CsrfFilter>());
         builder.Services.AddRouting();
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen();
 
         var app = builder.Build();
 
-        // Configure the HTTP request pipeline.
+        app.UseForwardedHeaders();   // als EERSTE: weet dat de bezoeker https gebruikt
+
         if (app.Environment.IsDevelopment())
         {
             app.UseSwagger();
@@ -70,8 +98,9 @@ public class Program
 
         app.UseHttpsRedirection();
         app.UseAuthentication();   // 1. Wie ben jij? (leest de cookie)
-        app.UseAuthorization();    // 2. Wat mag jij?      
+        app.UseAuthorization();    // 2. Wat mag jij?
         app.MapControllers();
+
         // Rollen Gast, Editor en Admin aanmaken (als ze nog niet bestaan)
         await RoleSeeder.SeedRolesAsync(app.Services);
 

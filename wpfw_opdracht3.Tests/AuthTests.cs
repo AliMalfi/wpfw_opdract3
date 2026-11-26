@@ -80,7 +80,7 @@ public class AuthTests
     [Fact]
     public async Task Login_JuistWachtwoord_Geeft200EnCookie()
     {
-        // Arrange: gebruiker bestaat, client die cookies NIET zelf verwerkt (zodat we de header kunnen zien)
+        // Arrange 1: gebruiker bestaat, client die cookies NIET zelf verwerkt (zodat we de header kunnen zien)
         await _factory.MaakGebruikerAsync("login@test.nl", Roles.Gast);
         var client = _factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -89,8 +89,24 @@ public class AuthTests
         });
         var dto = new LoginDto { Email = "login@test.nl", Password = ApiFactory.TestWachtwoord };
 
+        // Arrange 2: zelf het CSRF-token + de CSRF-cookie ophalen (zoals React doet)
+        var tokenResponse = await client.GetAsync("/api/security/csrf");
+        var tokenJson = await tokenResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var csrfToken = tokenJson.GetProperty("token").GetString();
+        var csrfCookie = tokenResponse.Headers.GetValues("Set-Cookie")
+            .First(c => c.StartsWith("portfolio.csrf"))
+            .Split(';')[0];   // alleen "naam=waarde"
+
+        // Arrange 3: login-verzoek met het token in de header en de cookie erbij
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/login")
+        {
+            Content = JsonContent.Create(dto)
+        };
+        request.Headers.Add("X-CSRF-TOKEN", csrfToken);
+        request.Headers.Add("Cookie", csrfCookie);
+
         // Act
-        var response = await client.PostAsJsonAsync("/api/auth/login", dto);
+        var response = await client.SendAsync(request);
 
         // Assert 1: 200 OK
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
